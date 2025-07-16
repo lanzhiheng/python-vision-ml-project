@@ -1,1 +1,129 @@
+# Clacky-related configuration
+.clacky/
+.environments.yaml
+
+# Python-specific files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Machine Learning and Data Science files
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.joblib
+*.model
+*.pt
+*.pth
+*.onnx
+*.pb
+*.tflite
+checkpoints/
+models/
+*.weights
+wandb/
+tensorboard_logs/
+mlruns/
+
+# Data files
+data/raw/
+data/processed/
+*.csv
+*.tsv
+*.json
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.mat
+
+# Jupyter Notebook files
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
+Thumbs.db
+
+# Operating System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs and temporary files
+logs/
+*.log
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Configuration files with sensitive data
+.env
+.env.local
+.env.production
+config/secrets.yaml
+secrets/
+
+# PyQt5 related
+*.ui~
+*.qrc~
+
+# OpenCV cache
+.opencv/
+
+# PyTorch specific
+lightning_logs/
+.pytorch/
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Testing
+.pytest_cache/
+.tox/
+.nox/
+
+# Documentation
+docs/_build/
+site/
+
+# Package manager directories
+node_modules/
+.yarn/
+
+# Build outputs
+*.o
+*.a
+*.lib
+*.dll
+*.exe
