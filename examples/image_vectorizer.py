@@ -29,6 +29,21 @@ import numpy as np
 from typing import Dict, Union, Optional
 import sys
 
+# CLIP模型导入（延迟导入以避免强制依赖）
+try:
+    import clip
+    OPENAI_CLIP_AVAILABLE = True
+except ImportError:
+    OPENAI_CLIP_AVAILABLE = False
+    print("⚠️ OpenAI CLIP 不可用，请安装: pip install clip-by-openai")
+
+try:
+    import open_clip
+    OPEN_CLIP_AVAILABLE = True
+except ImportError:
+    OPEN_CLIP_AVAILABLE = False
+    print("⚠️ OpenCLIP 不可用，请安装: pip install open-clip-torch")
+
 class ImageVectorizer:
     """
     图像向量化器，使用多模型集成提取图像特征向量。
@@ -44,30 +59,131 @@ class ImageVectorizer:
 
     # 支持的模型配置
     SUPPORTED_MODELS = {
+        # 原有的torchvision模型
         'resnet152': {
             'input_size': 224,
             'expected_feature_dim': 2048,
-            'description': 'ResNet-152 深度残差网络'
+            'description': 'ResNet-152 深度残差网络',
+            'model_type': 'torchvision'
         },
         'resnet101': {
             'input_size': 224,
             'expected_feature_dim': 2048,
-            'description': 'ResNet-101 深度残差网络'
+            'description': 'ResNet-101 深度残差网络',
+            'model_type': 'torchvision'
         },
         'resnet50': {
             'input_size': 224,
             'expected_feature_dim': 2048,
-            'description': 'ResNet-50 深度残差网络'
+            'description': 'ResNet-50 深度残差网络',
+            'model_type': 'torchvision'
         },
         'efficientnet_b7': {
             'input_size': 600,
             'expected_feature_dim': 2560,
-            'description': 'EfficientNet-B7 高效网络'
+            'description': 'EfficientNet-B7 高效网络',
+            'model_type': 'torchvision'
         },
         'vit_l_16': {
             'input_size': 224, 
             'expected_feature_dim': 1024,
-            'description': 'Vision Transformer Large'
+            'description': 'Vision Transformer Large',
+            'model_type': 'torchvision'
+        },
+        
+        # OpenAI CLIP 模型
+        'openai_clip_vit_b32': {
+            'input_size': 224,
+            'expected_feature_dim': 512,
+            'description': 'OpenAI CLIP ViT-B/32 (512维)',
+            'model_type': 'openai_clip',
+            'model_name': 'ViT-B/32'
+        },
+        'openai_clip_vit_b16': {
+            'input_size': 224,
+            'expected_feature_dim': 512,
+            'description': 'OpenAI CLIP ViT-B/16 (512维)',
+            'model_type': 'openai_clip',
+            'model_name': 'ViT-B/16'
+        },
+        'openai_clip_vit_l14': {
+            'input_size': 224,
+            'expected_feature_dim': 768,
+            'description': 'OpenAI CLIP ViT-L/14 (768维)',
+            'model_type': 'openai_clip',
+            'model_name': 'ViT-L/14'
+        },
+        'openai_clip_rn50': {
+            'input_size': 224,
+            'expected_feature_dim': 1024,
+            'description': 'OpenAI CLIP ResNet-50 (1024维)',
+            'model_type': 'openai_clip',
+            'model_name': 'RN50'
+        },
+        'openai_clip_rn101': {
+            'input_size': 224,
+            'expected_feature_dim': 512,
+            'description': 'OpenAI CLIP ResNet-101 (512维)',
+            'model_type': 'openai_clip',
+            'model_name': 'RN101'
+        },
+        
+        # OpenCLIP 模型 (增强版本)
+        'open_clip_vit_b32_openai': {
+            'input_size': 224,
+            'expected_feature_dim': 512,
+            'description': 'OpenCLIP ViT-B/32 OpenAI Dataset (512维)',
+            'model_type': 'open_clip',
+            'model_name': 'ViT-B-32',
+            'pretrained': 'openai'
+        },
+        'open_clip_vit_b32_laion400m': {
+            'input_size': 224,
+            'expected_feature_dim': 512,
+            'description': 'OpenCLIP ViT-B/32 LAION-400M (512维)',
+            'model_type': 'open_clip',
+            'model_name': 'ViT-B-32',
+            'pretrained': 'laion400m_e32'
+        },
+        'open_clip_vit_b16_laion400m': {
+            'input_size': 224,
+            'expected_feature_dim': 512,
+            'description': 'OpenCLIP ViT-B/16 LAION-400M (512维)',
+            'model_type': 'open_clip',
+            'model_name': 'ViT-B-16',
+            'pretrained': 'laion400m_e32'
+        },
+        'open_clip_vit_l14_laion2b': {
+            'input_size': 224,
+            'expected_feature_dim': 768,
+            'description': 'OpenCLIP ViT-L/14 LAION-2B (768维)',
+            'model_type': 'open_clip',
+            'model_name': 'ViT-L-14',
+            'pretrained': 'laion2b_s32b_b82k'
+        },
+        'open_clip_vit_h14_laion2b': {
+            'input_size': 224,
+            'expected_feature_dim': 1024,
+            'description': 'OpenCLIP ViT-H/14 LAION-2B (1024维)',
+            'model_type': 'open_clip',
+            'model_name': 'ViT-H-14',
+            'pretrained': 'laion2b_s32b_b79k'
+        },
+        'open_clip_convnext_base': {
+            'input_size': 256,
+            'expected_feature_dim': 512,
+            'description': 'OpenCLIP ConvNeXt-Base LAION-400M (512维)',
+            'model_type': 'open_clip',
+            'model_name': 'convnext_base',
+            'pretrained': 'laion400m_s13b_b51k'
+        },
+        'open_clip_convnext_large': {
+            'input_size': 320,
+            'expected_feature_dim': 768,
+            'description': 'OpenCLIP ConvNeXt-Large LAION-400M (768维)',
+            'model_type': 'open_clip',
+            'model_name': 'convnext_large_d_320',
+            'pretrained': 'laion2b_s29b_b131k_ft_soup'
         }
     }
 
@@ -124,65 +240,120 @@ class ImageVectorizer:
                 
             try:
                 model_config = self.SUPPORTED_MODELS[model_name]
+                model_type = model_config.get('model_type', 'torchvision')
                 print(f"正在加载: {model_config['description']} ({model_name})")
                 
-                # 加载模型
-                if model_name == 'resnet152':
-                    model = models.resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V2)
-                elif model_name == 'resnet101':
-                    model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V2)
-                elif model_name == 'resnet50':
-                    model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
-                elif model_name == 'efficientnet_b7':
-                    try:
-                        model = models.efficientnet_b7(weights=models.EfficientNet_B7_Weights.IMAGENET1K_V1)
-                    except AttributeError:
-                        print(f"  EfficientNet-B7 不可用，替换为 ResNet-101")
+                model = None
+                preprocessor = None
+                feature_extractor = None
+                
+                # 根据模型类型加载不同的模型
+                if model_type == 'torchvision':
+                    # 原有的torchvision模型加载
+                    if model_name == 'resnet152':
+                        model = models.resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V2)
+                    elif model_name == 'resnet101':
                         model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V2)
-                        model_name = 'resnet101'  # 更新模型名称
-                elif model_name == 'vit_l_16':
-                    try:
-                        model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1)
-                    except AttributeError:
-                        print(f"  Vision Transformer 不可用，替换为 ResNet-50")
+                    elif model_name == 'resnet50':
                         model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
-                        model_name = 'resnet50'  # 更新模型名称
+                    elif model_name == 'efficientnet_b7':
+                        try:
+                            model = models.efficientnet_b7(weights=models.EfficientNet_B7_Weights.IMAGENET1K_V1)
+                        except AttributeError:
+                            print(f"  EfficientNet-B7 不可用，替换为 ResNet-101")
+                            model = models.resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V2)
+                            model_name = 'resnet101'  # 更新模型名称
+                    elif model_name == 'vit_l_16':
+                        try:
+                            model = models.vit_l_16(weights=models.ViT_L_16_Weights.IMAGENET1K_V1)
+                        except AttributeError:
+                            print(f"  Vision Transformer 不可用，替换为 ResNet-50")
+                            model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
+                            model_name = 'resnet50'  # 更新模型名称
+                    else:
+                        raise ValueError(f"Unsupported torchvision model: {model_name}")
+                    
+                elif model_type == 'openai_clip':
+                    # OpenAI CLIP模型加载
+                    if not OPENAI_CLIP_AVAILABLE:
+                        print(f"  跳过 {model_name}: OpenAI CLIP 不可用")
+                        continue
+                    
+                    clip_model_name = model_config['model_name']
+                    print(f"  正在下载 OpenAI CLIP 模型: {clip_model_name}...")
+                    model, preprocessor = clip.load(clip_model_name, device=self.device)
+                    feature_extractor = model  # CLIP模型本身就是特征提取器
+                    
+                elif model_type == 'open_clip':
+                    # OpenCLIP模型加载
+                    if not OPEN_CLIP_AVAILABLE:
+                        print(f"  跳过 {model_name}: OpenCLIP 不可用")
+                        continue
+                    
+                    clip_model_name = model_config['model_name']
+                    pretrained = model_config['pretrained']
+                    print(f"  正在下载 OpenCLIP 模型: {clip_model_name} ({pretrained})...")
+                    model, _, preprocessor = open_clip.create_model_and_transforms(
+                        clip_model_name, pretrained=pretrained, device=self.device
+                    )
+                    feature_extractor = model  # OpenCLIP模型本身就是特征提取器
                 else:
-                    raise ValueError(f"Unsupported model: {model_name}")
+                    raise ValueError(f"Unsupported model type: {model_type}")
                 
-                # 移除最后的分类层，获取特征提取器
-                if 'vit' in model_name:
-                    # Vision Transformer 的特殊处理 - 移除heads部分
-                    feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])
-                else:
-                    # ResNet 和 EfficientNet 的处理 - 移除最后的分类层
-                    feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])
-                
-                feature_extractor.eval()
-                
-                # 移动到设备
-                print(f"  正在将 {model_name} 移动到计算设备...")
-                start_time = time.time()
-                feature_extractor.to(self.device)
-                end_time = time.time()
-                
-                # 设置预处理管道
-                input_size = model_config['input_size']
-                preprocessor = transforms.Compose([
-                    transforms.Resize(int(input_size * 1.14)),  # 略大于目标尺寸
-                    transforms.CenterCrop(input_size),
-                    transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=[0.485, 0.456, 0.406], 
-                        std=[0.229, 0.224, 0.225]
-                    ),
-                ])
+                # 对于torchvision模型，需要移除最后的分类层获取特征提取器
+                if model_type == 'torchvision':
+                    if 'vit' in model_name:
+                        # Vision Transformer 的特殊处理 - 移除heads部分
+                        feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])
+                    else:
+                        # ResNet 和 EfficientNet 的处理 - 移除最后的分类层
+                        feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])
+                    
+                    feature_extractor.eval()
+                    
+                    # 移动到设备
+                    print(f"  正在将 {model_name} 移动到计算设备...")
+                    start_time = time.time()
+                    feature_extractor.to(self.device)
+                    end_time = time.time()
+                    
+                    # 设置预处理管道
+                    input_size = model_config['input_size']
+                    preprocessor = transforms.Compose([
+                        transforms.Resize(int(input_size * 1.14)),  # 略大于目标尺寸
+                        transforms.CenterCrop(input_size),
+                        transforms.ToTensor(),
+                        transforms.Normalize(
+                            mean=[0.485, 0.456, 0.406], 
+                            std=[0.229, 0.224, 0.225]
+                        ),
+                    ])
+                    
+                elif model_type in ['openai_clip', 'open_clip']:
+                    # CLIP模型已经在加载时移动到设备了
+                    print(f"  {model_name} 已加载到设备: {self.device}")
+                    start_time = time.time()
+                    end_time = time.time()  # CLIP模型在加载时已经移动到设备
+                    # preprocessor 已经在加载时获得
+                    
+                # 设置模型为评估模式
+                if hasattr(feature_extractor, 'eval'):
+                    feature_extractor.eval()
                 
                 # 获取实际特征维度
                 with torch.no_grad():
+                    input_size = model_config['input_size']
                     dummy_input = torch.randn(1, 3, input_size, input_size).to(self.device)
-                    dummy_output = feature_extractor(dummy_input)
-                    actual_feature_dim = dummy_output.squeeze().numel()
+                    
+                    if model_type == 'torchvision':
+                        dummy_output = feature_extractor(dummy_input)
+                        actual_feature_dim = dummy_output.squeeze().numel()
+                    elif model_type in ['openai_clip', 'open_clip']:
+                        # CLIP模型使用encode_image方法
+                        dummy_output = feature_extractor.encode_image(dummy_input)
+                        actual_feature_dim = dummy_output.squeeze().numel()
+                    else:
+                        actual_feature_dim = model_config['expected_feature_dim']  # 使用配置中的默认值
                 
                 # 保存模型组件
                 self.models[model_name] = model
@@ -234,14 +405,33 @@ class ImageVectorizer:
                 # 使用对应模型的预处理器
                 preprocessor = self.preprocessors[model_name]
                 feature_extractor = self.feature_extractors[model_name]
+                model_config = self.SUPPORTED_MODELS[model_name]
+                model_type = model_config.get('model_type', 'torchvision')
                 
                 # 预处理图像
-                img_tensor = preprocessor(img)
-                batch_tensor = torch.unsqueeze(img_tensor, 0).to(self.device)
+                if model_type in ['openai_clip', 'open_clip']:
+                    # CLIP模型的预处理器返回的是tensor
+                    if hasattr(preprocessor, '__call__'):
+                        img_tensor = preprocessor(img).unsqueeze(0).to(self.device)
+                    else:
+                        # 如果是传统的transforms
+                        img_tensor = preprocessor(img)
+                        batch_tensor = torch.unsqueeze(img_tensor, 0).to(self.device)
+                        img_tensor = batch_tensor
+                else:
+                    # torchvision模型的预处理
+                    img_tensor = preprocessor(img)
+                    img_tensor = torch.unsqueeze(img_tensor, 0).to(self.device)
 
                 # 提取特征
                 with torch.no_grad():
-                    features = feature_extractor(batch_tensor)
+                    if model_type == 'torchvision':
+                        features = feature_extractor(img_tensor)
+                    elif model_type in ['openai_clip', 'open_clip']:
+                        # CLIP模型使用encode_image方法
+                        features = feature_extractor.encode_image(img_tensor)
+                    else:
+                        features = feature_extractor(img_tensor)
                 
                 # 展平为一维向量并添加到列表
                 vector = features.squeeze().cpu().numpy().flatten()
@@ -319,18 +509,34 @@ class ImageVectorizer:
                 # 重新预处理当前批次（针对不同模型的输入尺寸）
                 preprocessor = self.preprocessors[model_name]
                 feature_extractor = self.feature_extractors[model_name]
+                model_config = self.SUPPORTED_MODELS[model_name]
+                model_type = model_config.get('model_type', 'torchvision')
                 
                 model_batch_tensors = []
                 for path in valid_paths:
                     img = Image.open(path).convert('RGB')
-                    img_tensor = preprocessor(img)
+                    if model_type in ['openai_clip', 'open_clip']:
+                        # CLIP模型的预处理
+                        if hasattr(preprocessor, '__call__'):
+                            img_tensor = preprocessor(img)
+                        else:
+                            img_tensor = preprocessor(img)
+                    else:
+                        # torchvision模型的预处理
+                        img_tensor = preprocessor(img)
                     model_batch_tensors.append(img_tensor)
                 
                 if model_batch_tensors:
                     model_batch_tensor = torch.stack(model_batch_tensors).to(self.device)
                     
                     with torch.no_grad():
-                        features = feature_extractor(model_batch_tensor)
+                        if model_type == 'torchvision':
+                            features = feature_extractor(model_batch_tensor)
+                        elif model_type in ['openai_clip', 'open_clip']:
+                            # CLIP模型使用encode_image方法
+                            features = feature_extractor.encode_image(model_batch_tensor)
+                        else:
+                            features = feature_extractor(model_batch_tensor)
                     
                     all_model_features[model_name] = features.squeeze().cpu().numpy()
             
@@ -455,8 +661,17 @@ def main():
   # 批量处理目录 (GPU, 使用所有模型)
   python examples/image_vectorizer.py --image_path ./images/ --device gpu --batch_size 16
   
-  # 使用特定模型组合
+  # 使用特定模型组合 (经典模型)
   python examples/image_vectorizer.py --image_path image.jpg --models resnet152,vit_l_16
+  
+  # 使用OpenAI CLIP模型
+  python examples/image_vectorizer.py --image_path image.jpg --models openai_clip_vit_b32
+  
+  # 使用OpenCLIP增强模型
+  python examples/image_vectorizer.py --image_path image.jpg --models open_clip_vit_h14_laion2b
+  
+  # 混合模型集成 (CLIP + 经典模型)
+  python examples/image_vectorizer.py --image_path image.jpg --models openai_clip_vit_l14,resnet152
   
   # 使用单个模型（向后兼容）
   python examples/image_vectorizer.py --image_path image.jpg --model resnet152
@@ -477,7 +692,11 @@ def main():
     parser.add_argument("--batch_size", type=int, default=8, 
                        help="批处理大小 (默认: 8)")
     parser.add_argument("--models", type=str, default="resnet152",
-                       help="要使用的模型列表，用逗号分隔 (默认: resnet152; 完整集成: resnet152,efficientnet_b7,vit_l_16)")
+                       help="要使用的模型列表，用逗号分隔\n"
+                            "经典模型: resnet152,efficientnet_b7,vit_l_16\n"
+                            "OpenAI CLIP: openai_clip_vit_b32,openai_clip_vit_l14\n"
+                            "OpenCLIP: open_clip_vit_b32_laion400m,open_clip_vit_h14_laion2b\n"
+                            "(默认: resnet152)")
     parser.add_argument("--model", type=str, default=None,
                        help="单个模型名称（向后兼容，建议使用--models）")
     parser.add_argument("--create_test_images", type=str,
