@@ -534,16 +534,9 @@ class VisionModelBenchmark:
         memory_usage = []
         
         for i in range(num_runs):
-            # 内存使用监控
-            if device == 'mps':
-                if hasattr(torch.mps, 'current_allocated_memory'):
-                    mem_before = torch.mps.current_allocated_memory()
-                else:
-                    mem_before = 0
-            elif device == 'cuda':
-                mem_before = torch.cuda.memory_allocated()
-            else:
-                mem_before = 0
+            # 获取进程对象（仅CPU需要）
+            if device == 'cpu':
+                process = psutil.Process()
             
             # 计时开始
             start_time = time.time()
@@ -563,18 +556,17 @@ class VisionModelBenchmark:
             processing_time = (end_time - start_time) * 1000  # 转换为毫秒
             processing_times.append(processing_time)
             
-            # 内存使用
-            if device == 'mps':
-                if hasattr(torch.mps, 'current_allocated_memory'):
-                    mem_after = torch.mps.current_allocated_memory()
-                    memory_usage.append((mem_after - mem_before) / (1024**2))  # MB
-                else:
-                    memory_usage.append(0)
+            # 内存使用监控（监测总内存使用量）
+            if device == 'cpu':
+                # CPU 内存监控：当前进程总内存使用
+                current_memory = process.memory_info().rss / (1024**2)  # MB
+                memory_usage.append(current_memory)
+            elif device == 'mps':
+                current_memory = torch.mps.current_allocated_memory() / (1024**2)  # MB
+                memory_usage.append(current_memory)
             elif device == 'cuda':
-                mem_after = torch.cuda.memory_allocated()
-                memory_usage.append((mem_after - mem_before) / (1024**2))  # MB
-            else:
-                memory_usage.append(0)
+                current_memory = torch.cuda.memory_allocated() / (1024**2)  # MB
+                memory_usage.append(current_memory)
             
             if (i + 1) % 5 == 0:
                 print(f"    进度: {i + 1}/{num_runs}")
@@ -658,16 +650,9 @@ class VisionModelBenchmark:
                 memory_usage = []
                 
                 for run in range(num_runs):
-                    # 内存监控
-                    if device == 'mps':
-                        if hasattr(torch.mps, 'current_allocated_memory'):
-                            mem_before = torch.mps.current_allocated_memory()
-                        else:
-                            mem_before = 0
-                    elif device == 'cuda':
-                        mem_before = torch.cuda.memory_allocated()
-                    else:
-                        mem_before = 0
+                    # 获取进程对象（仅CPU需要）
+                    if device == 'cpu':
+                        process = psutil.Process()
                     
                     # 计时
                     start_time = time.time()
@@ -687,18 +672,17 @@ class VisionModelBenchmark:
                     processing_times.append(processing_time * 1000)  # ms
                     throughputs.append(throughput)
                     
-                    # 内存使用
-                    if device == 'mps':
-                        if hasattr(torch.mps, 'current_allocated_memory'):
-                            mem_after = torch.mps.current_allocated_memory()
-                            memory_usage.append(mem_after / (1024**2))  # MB
-                        else:
-                            memory_usage.append(0)
+                    # 内存使用监控（监测总内存使用量）
+                    if device == 'cpu':
+                        # CPU 内存监控：当前进程总内存使用
+                        current_memory = process.memory_info().rss / (1024**2)  # MB
+                        memory_usage.append(current_memory)
+                    elif device == 'mps':
+                        current_memory = torch.mps.current_allocated_memory() / (1024**2)  # MB
+                        memory_usage.append(current_memory)
                     elif device == 'cuda':
-                        mem_after = torch.cuda.memory_allocated()
-                        memory_usage.append(mem_after / (1024**2))  # MB
-                    else:
-                        memory_usage.append(0)
+                        current_memory = torch.cuda.memory_allocated() / (1024**2)  # MB
+                        memory_usage.append(current_memory)
                 
                 # 统计结果
                 batch_result = {
