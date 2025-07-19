@@ -127,3 +127,9 @@ node_modules/
 *.lib
 *.dll
 *.exe
+
+benchmark_test_images/
+data/
+quick_fix_test/
+
+
