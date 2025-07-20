@@ -19,11 +19,18 @@ numpy>=1.24.0
 # Enhanced CLIP Models
 open-clip-torch>=2.20.0
 
+# Vector Database - Milvus
+pymilvus>=2.3.0
+
 # System Monitoring (for benchmarks)
 psutil>=5.9.0
 
 # Configuration Management
 pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Additional utilities for enhanced functionality
+# Note: hashlib, json, concurrent.futures, typing, pathlib are built-in modules
 
 # OpenAI CLIP from GitHub (install separately if needed)
 # pip install git+https://github.com/openai/CLIP.git

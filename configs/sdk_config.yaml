@@ -1,0 +1,69 @@
+# Image Vectorization SDK Configuration
+
+# Milvus Database Settings
+milvus:
+  host: ${MILVUS_HOST:localhost}
+  port: ${MILVUS_PORT:19530}
+  user: ${MILVUS_USER:}
+  password: ${MILVUS_PASSWORD:}
+  database: ${MILVUS_DATABASE:default}
+  collection_name: ${MILVUS_COLLECTION_NAME:image_vectors}
+  
+  # Connection settings
+  timeout: 30
+  retry_times: 3
+  
+  # Index configuration
+  index_type: ${INDEX_TYPE:IVF_FLAT}
+  metric_type: ${METRIC_TYPE:L2}
+  nlist: ${NLIST:1024}
+
+# CLIP Model Configuration
+clip:
+  model_name: ${CLIP_MODEL_NAME:ViT-B/32}
+  pretrained: ${CLIP_PRETRAINED:openai}
+  device: ${CLIP_DEVICE:auto}
+  
+  # Image preprocessing
+  image_size: ${IMAGE_SIZE:224}
+  normalize_mean: [0.48145466, 0.4578275, 0.40821073]
+  normalize_std: [0.26862954, 0.26130258, 0.27577711]
+
+# Image Processing Settings
+image_processing:
+  supported_formats: ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']
+  max_size_mb: ${MAX_IMAGE_SIZE_MB:10}
+  batch_size: ${BATCH_SIZE:32}
+  
+  # Preprocessing options
+  auto_resize: true
+  maintain_aspect_ratio: true
+  background_color: [255, 255, 255]  # White background for padding
+
+# Vector Configuration
+vector:
+  dimension: ${VECTOR_DIMENSION:512}
+  normalize: true
+  
+# Performance Settings
+performance:
+  enable_cache: ${ENABLE_CACHE:true}
+  cache_size: ${CACHE_SIZE:1000}
+  cache_ttl: ${CACHE_TTL:3600}
+  parallel_processing: true
+  max_workers: 4
+
+# Logging Configuration
+logging:
+  level: ${LOG_LEVEL:INFO}
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  file: ${LOG_FILE:logs/image_vectorization.log}
+  max_file_size: 10MB
+  backup_count: 5
+
+# Error Handling
+error_handling:
+  max_retries: 3
+  retry_delay: 1.0
+  fail_fast: false
+  skip_corrupted_images: true
