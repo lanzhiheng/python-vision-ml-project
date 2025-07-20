@@ -116,7 +116,7 @@ class ImageVectorSDK:
             max_workers=perf_config['max_workers']
         )
         
-        logger.info("Image vectorizer initialized")
+        logger.info(f"Image vectorizer initialized with model {clip_config['model_name']}, embedding dim: {self.vectorizer.encoder.embedding_dim}")
     
     def _initialize_vector_store(self):
         """Initialize the vector store."""
@@ -125,15 +125,18 @@ class ImageVectorSDK:
         
         collection_name = milvus_config.pop('collection_name', 'image_vectors')
         
+        # Use the actual embedding dimension from the CLIP encoder
+        actual_dimension = self.vectorizer.encoder.embedding_dim
+        
         self.vector_store = VectorStore(
             milvus_config=milvus_config,
             collection_name=collection_name,
-            dimension=vector_config['dimension'],
+            dimension=actual_dimension,
             metric_type=vector_config['metric_type'],
             index_type=vector_config['index_type']
         )
         
-        logger.info("Vector store initialized")
+        logger.info(f"Vector store initialized with dimension {actual_dimension}")
     
     def connect(self) -> bool:
         """
@@ -508,9 +511,10 @@ class ImageVectorSDK:
         if self.connected:
             try:
                 db_stats = self.get_database_stats()
+                total_vectors = db_stats.get("total_vectors", 0)
                 health['database'] = {
                     'status': 'healthy',
-                    'details': f'Connected, {db_stats.get(\"total_vectors\", 0)} vectors stored'
+                    'details': f'Connected, {total_vectors} vectors stored'
                 }
             except Exception as e:
                 health['database'] = {

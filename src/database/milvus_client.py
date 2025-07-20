@@ -142,7 +142,7 @@ class MilvusClient:
                 FieldSchema(name="model_name", dtype=DataType.VARCHAR, max_length=100),
                 FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=dimension),
                 FieldSchema(name="created_at", dtype=DataType.INT64),
-                FieldSchema(name="metadata", dtype=DataType.JSON, default_value={})
+                FieldSchema(name="metadata", dtype=DataType.JSON)
             ]
             
             # Create schema
@@ -232,7 +232,7 @@ class MilvusClient:
                 [meta.get('model_name', '') for meta in metadata],  # model_name
                 vectors,                                            # embedding
                 [current_time] * len(vectors),                      # created_at
-                [meta.get('extra_metadata', {}) for meta in metadata]  # metadata
+                [meta.get('extra_metadata') if meta.get('extra_metadata') is not None else {} for meta in metadata]  # metadata
             ]
             
             # Insert data
