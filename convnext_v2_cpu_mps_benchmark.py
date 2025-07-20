@@ -81,6 +81,14 @@ class VisionModelBenchmark:
                 'model_type': 'transformers',
                 'description': 'ResNet-50 经典残差网络'
             },
+            'efficientnet_b7': {
+                'name': 'EfficientNet-B7',
+                'hf_model_name': 'google/efficientnet-b7',
+                'input_size': 600,
+                'expected_feature_dim': 2560,
+                'model_type': 'transformers',
+                'description': 'EfficientNet-B7 高效卷积网络'
+            },
             # 可能后续会使用的模型
             'open_clip_vit_g14': {
                 'name': 'OpenCLIP ViT-G/14',
@@ -338,8 +346,16 @@ class VisionModelBenchmark:
         from transformers import AutoModel, AutoImageProcessor
         
         print(f"  正在下载模型权重: {config['hf_model_name']}")
+        # 使用快速图像处理器以获得更好的性能
+        try:
+            preprocessor = AutoImageProcessor.from_pretrained(config['hf_model_name'], use_fast=True)
+            print(f"  ✅ 使用快速图像处理器")
+        except Exception as e:
+            # 如果快速处理器不可用，回退到标准处理器
+            print(f"  ⚠️ 快速处理器不可用，使用标准处理器: {e}")
+            preprocessor = AutoImageProcessor.from_pretrained(config['hf_model_name'], use_fast=False)
+        
         model = AutoModel.from_pretrained(config['hf_model_name'])
-        preprocessor = AutoImageProcessor.from_pretrained(config['hf_model_name'])
         
         # 设置为评估模式并移动到设备
         model.eval()
@@ -812,10 +828,13 @@ class VisionModelBenchmark:
         for model_key in models_tested:
             model_name = results['model_configs'][model_key]['name']
             print(f"\n模型: {model_name}")
+            
+            # 显示单张图像处理性能
+            print(f"🔍 单张图像处理性能:")
             print(f"{'设备':<8} {'平均时间(ms)':<12} {'吞吐量(fps)':<12} {'内存(MB)':<10}")
             print("-" * 45)
             
-            model_device_performance = {}
+            single_image_performance = {}
             for device in devices_tested:
                 if device in single_results.get(model_key, {}):
                     result = single_results[model_key][device]
@@ -824,7 +843,7 @@ class VisionModelBenchmark:
                         throughput = 1000 / avg_time  # fps
                         memory = result['avg_memory_mb']
                         
-                        model_device_performance[device] = {
+                        single_image_performance[device] = {
                             'avg_time_ms': avg_time,
                             'throughput_fps': throughput,
                             'memory_mb': memory
@@ -832,30 +851,59 @@ class VisionModelBenchmark:
                         
                         print(f"{device.upper():<8} {avg_time:<12.2f} {throughput:<12.2f} {memory:<10.2f}")
             
-            # 计算相对于CPU的加速比
-            if 'cpu' in model_device_performance and len(model_device_performance) > 1:
-                cpu_throughput = model_device_performance['cpu']['throughput_fps']
-                print(f"  设备加速比 (相对于CPU):")
+            # 显示批处理性能（用于加速比计算）
+            batch_results = results.get('batch_processing_results', {})
+            if model_key in batch_results:
+                print(f"\n📦 批处理最佳性能:")
+                print(f"{'设备':<8} {'批次大小':<8} {'吞吐量(fps)':<12} {'内存(MB)':<10}")
+                print("-" * 40)
                 
-                for device, perf in model_device_performance.items():
-                    if device != 'cpu':
-                        speedup = perf['throughput_fps'] / cpu_throughput
-                        analysis['performance_ratios'][f'{model_key}_{device}_vs_cpu'] = speedup
-                        
-                        status = "🚀" if speedup > 2.0 else "📈" if speedup > 1.2 else "⚠️" if speedup > 0.8 else "🐌"
-                        print(f"    {device.upper()}: {speedup:.2f}x {status}")
-                        
-                        # 生成设备建议
-                        if speedup > 2.0:
-                            analysis['recommendations'].append(
-                                f"{model_name} 在 {device.upper()} 上显著优于 CPU ({speedup:.1f}x)，推荐用于生产环境"
-                            )
-                        elif speedup < 0.8:
-                            analysis['recommendations'].append(
-                                f"{model_name} 在 {device.upper()} 上性能不如 CPU，建议使用 CPU 处理"
-                            )
-            
-            analysis['device_comparison'][model_key] = model_device_performance
+                batch_performance = {}
+                for device in devices_tested:
+                    if device in batch_results.get(model_key, {}):
+                        batch_result = batch_results[model_key][device]
+                        if 'error' not in batch_result and 'batch_results' in batch_result:
+                            batch_data = batch_result['batch_results']
+                            if batch_data:
+                                # 找到最佳批处理配置
+                                best_batch = max(batch_data.items(), key=lambda x: x[1]['avg_throughput'])
+                                best_size, best_perf = best_batch
+                                
+                                batch_performance[device] = {
+                                    'batch_size': best_size,
+                                    'throughput_fps': best_perf['avg_throughput'],
+                                    'memory_mb': best_perf['avg_memory_mb']
+                                }
+                                
+                                print(f"{device.upper():<8} {best_size:<8} {best_perf['avg_throughput']:<12.2f} {best_perf['avg_memory_mb']:<10.2f}")
+                
+                # 使用批处理性能计算加速比
+                if 'cpu' in batch_performance and len(batch_performance) > 1:
+                    cpu_throughput = batch_performance['cpu']['throughput_fps']
+                    print(f"\n  设备加速比 (基于批处理性能):")
+                    
+                    for device, perf in batch_performance.items():
+                        if device != 'cpu':
+                            speedup = perf['throughput_fps'] / cpu_throughput
+                            analysis['performance_ratios'][f'{model_key}_{device}_vs_cpu'] = speedup
+                            
+                            status = "🚀" if speedup > 2.0 else "📈" if speedup > 1.2 else "⚠️" if speedup > 0.8 else "🐌"
+                            print(f"    {device.upper()}: {speedup:.2f}x {status}")
+                            
+                            # 生成设备建议
+                            if speedup > 2.0:
+                                analysis['recommendations'].append(
+                                    f"{model_name} 在 {device.upper()} 上显著优于 CPU ({speedup:.1f}x)，推荐用于生产环境"
+                                )
+                            elif speedup < 0.8:
+                                analysis['recommendations'].append(
+                                    f"{model_name} 在 {device.upper()} 上性能不如 CPU，建议使用 CPU 处理"
+                                )
+                
+                analysis['device_comparison'][model_key] = batch_performance
+            else:
+                # 如果没有批处理数据，回退到单张图像性能
+                analysis['device_comparison'][model_key] = single_image_performance
         
         # 模型间性能对比
         print(f"\n🏆 模型间性能对比 (在CPU上):")
@@ -1001,7 +1049,7 @@ def main():
     parser.add_argument('--num_images', type=int, default=50, 
                         help='测试图像数量')
     parser.add_argument('--models', type=str, nargs='+', required=False,
-                        help='要测试的模型列表 (必需参数) - 可选: convnext_v2_large, resnet50, open_clip_vit_g14, openai_clip_vit_l14_336')
+                        help='要测试的模型列表 (必需参数) - 可选: convnext_v2_large, resnet50, efficientnet_b7, open_clip_vit_g14, openai_clip_vit_l14_336')
     parser.add_argument('--devices', type=str, nargs='+',
                         help='要测试的设备列表 (cpu, mps, cuda)')
     parser.add_argument('--output', type=str, default='vision_model_benchmark_results.json',

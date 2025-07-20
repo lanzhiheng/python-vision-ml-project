@@ -8,6 +8,7 @@ transformers>=4.20.0
 # Computer Vision Processing
 opencv-contrib-python>=4.8.0
 pillow>=10.0.0
+open_clip_torch
 
 # GUI Framework
 pyqt5==5.15.10
